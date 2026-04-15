@@ -1,0 +1,14 @@
+# Example: Web Application Target
+
+Target: app.example.com
+Type: web
+Scope: *.example.com
+Auth: yes (register available)
+Notes:
+- Login with email/password
+- Dashboard with projects and invoices
+- Team functionality (invite members)
+- File upload for project attachments
+- Admin panel at /admin (403 for normal users)
+- API at api.example.com/v1 and /v2
+- JS reveals /api/v1/internal/users endpoint

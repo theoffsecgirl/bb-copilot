@@ -1,0 +1,13 @@
+# Example: API Target
+
+Target: api.example.com
+Type: api
+Scope: api.example.com
+Auth: JWT Bearer token
+Notes:
+- REST API with Swagger at /api-docs
+- Endpoints: /users, /orgs, /projects, /invoices, /files
+- JWT contains: user_id, org_id, role
+- org_id present in most requests
+- /api/v1 and /api/v2 both active
+- GraphQL at /graphql (introspection enabled)
