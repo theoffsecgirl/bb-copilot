@@ -13,7 +13,7 @@ bbcopilot report --finding "IDOR en /api/v1/invoices/{id}" --target api.target.c
 ## Qué hace
 
 - Lee tu vault local (playbooks en Markdown por tipo de vuln y fase)
-- Envía el contexto adecuado + tu input a GPT-4o
+- Envía el contexto adecuado + tu input al modelo configurado
 - Devuelve output estructurado y accionable: hipótesis → pasos → evidencia → impacto
 - Genera reportes completos listos para enviar a HackerOne, Bugcrowd o YesWeHack
 - Guarda historial local de todas las sesiones en `~/.bbcopilot/history/`
@@ -23,7 +23,7 @@ bbcopilot report --finding "IDOR en /api/v1/invoices/{id}" --target api.target.c
 
 - Python 3.12+
 - [Typer](https://typer.tiangolo.com/) + [Rich](https://github.com/Textualize/rich)
-- OpenAI API (`gpt-4o`)
+- Cualquier LLM compatible con API OpenAI: **Ollama, Groq, OpenAI, Anthropic**
 - Vault en Markdown (local, versionado en Git)
 - Historial en JSON local (`~/.bbcopilot/history/`)
 
@@ -33,13 +33,47 @@ bbcopilot report --finding "IDOR en /api/v1/invoices/{id}" --target api.target.c
 git clone https://github.com/theoffsecgirl/bb-copilot
 cd bb-copilot
 make setup
-# Editar .env y añadir OPENAI_API_KEY
 ```
 
-### Manual
+Luego edita `.env` según tu proveedor elegido (ver sección **Proveedores LLM**).
+
+## Proveedores LLM
+
+| Proveedor | Coste | Privacidad | Setup |
+|---|---|---|---|
+| **Ollama** (por defecto) | Gratis | Local — 100% privado | `brew install ollama` |
+| Groq | Gratis (tier limitado) | Nube | API key en console.groq.com |
+| OpenAI | De pago | Nube | API key en platform.openai.com |
+| Anthropic | De pago | Nube | API key en console.anthropic.com |
+
+### Ollama (por defecto)
+
 ```bash
-pip install -e .
-cp .env.example .env
+brew install ollama
+ollama pull llama3.1   # ~4GB, solo una vez
+ollama serve           # arrancar en background
+```
+
+`.env`:
+```bash
+OPENAI_API_KEY=ollama
+OPENAI_BASE_URL=http://localhost:11434/v1
+OPENAI_MODEL=llama3.1
+```
+
+### Groq (gratis, nube)
+
+Atención: el tier gratuito tiene límite de ~6000 tokens de contexto. Añade esto al `.env`:
+```bash
+BBCOPILOT_MAX_CONTEXT_TOKENS=5000
+```
+
+### OpenAI
+
+```bash
+OPENAI_API_KEY=sk-proj-...
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o
 ```
 
 ## Uso
@@ -115,7 +149,7 @@ make clean    # Limpiar cachés
 ## Historial
 
 Todas las sesiones se guardan automáticamente en `~/.bbcopilot/history/` en formato JSON.
-Puedes desactivarlo con `--no-save` en cualquier comando.
+Desactívalo con `--no-save` en cualquier comando.
 
 ## Filosofía
 
