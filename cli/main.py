@@ -22,14 +22,16 @@ def _print_response(raw: str, tokens: int = 0) -> None:
 @app.command()
 def ask(
     observation: str = typer.Argument(..., help="Observación o pregunta sobre un target"),
+    full: bool = typer.Option(False, "--full", "-f", help="Output detallado completo"),
     save: bool = typer.Option(True, "--save/--no-save", help="Guardar en historial"),
 ) -> None:
-    """Pregunta libre. Todo el vault se carga como contexto automáticamente."""
+    """Pregunta libre. Compacto por defecto, --full para output completo."""
     from cli.planner import run_ask
     from cli.history import save as save_history
-    console.print(Panel(f"[bold cyan]Pregunta:[/bold cyan] {observation}", expand=False))
+    mode = "[dim][full][/dim]" if full else "[dim][compact][/dim]"
+    console.print(Panel(f"[bold cyan]Pregunta:[/bold cyan] {observation} {mode}", expand=False))
     with console.status("[bold green]Pensando...[/bold green]"):
-        result = run_ask(observation)
+        result = run_ask(observation, full=full)
     _print_response(result.raw, result.tokens_used)
     if save:
         path = save_history("ask", observation, result)
@@ -39,16 +41,18 @@ def ask(
 @app.command()
 def plan(
     target: str = typer.Option(..., "--target", "-t", help="URL o dominio del target"),
-    type: str = typer.Option("web", "--type", help="Tipo de target: web | api | mobile"),
-    context: Optional[str] = typer.Option(None, "--context", "-c", help="Ruta a fichero de contexto"),
+    type: str = typer.Option("web", "--type", help="Tipo: web | api | mobile"),
+    context: Optional[str] = typer.Option(None, "--context", "-c", help="Fichero de contexto"),
+    full: bool = typer.Option(False, "--full", help="Output detallado completo"),
     save: bool = typer.Option(True, "--save/--no-save", help="Guardar en historial"),
 ) -> None:
-    """Genera un plan de ataque completo y priorizado para un target."""
+    """Plan de ataque completo. Compacto por defecto, --full para más detalle."""
     from cli.planner import run_plan
     from cli.history import save as save_history
-    console.print(Panel(f"[bold cyan]Plan:[/bold cyan] {target} [{type}]", expand=False))
+    mode = "[dim][full][/dim]" if full else "[dim][compact][/dim]"
+    console.print(Panel(f"[bold cyan]Plan:[/bold cyan] {target} [{type}] {mode}", expand=False))
     with console.status("[bold green]Construyendo plan...[/bold green]"):
-        result = run_plan(target, type, context)
+        result = run_plan(target, type, context, full=full)
     _print_response(result.raw, result.tokens_used)
     if save:
         path = save_history("plan", f"{target} [{type}]", result)
@@ -57,16 +61,18 @@ def plan(
 
 @app.command()
 def vuln(
-    name: str = typer.Argument(..., help="Clase de vulnerabilidad (ej: idor, ssrf, xss, cors)"),
-    context: Optional[str] = typer.Option(None, "--context", "-c", help="Ruta a fichero de contexto"),
+    name: str = typer.Argument(..., help="Clase de vuln: idor, ssrf, xss, cors..."),
+    context: Optional[str] = typer.Option(None, "--context", "-c", help="Fichero de contexto"),
+    full: bool = typer.Option(False, "--full", help="Output detallado completo"),
     save: bool = typer.Option(True, "--save/--no-save", help="Guardar en historial"),
 ) -> None:
-    """Playbook completo y guía de testing para una vulnerabilidad específica."""
+    """Playbook de una vulnerabilidad. Compacto por defecto."""
     from cli.planner import run_vuln
     from cli.history import save as save_history
-    console.print(Panel(f"[bold cyan]Vuln:[/bold cyan] {name.upper()}", expand=False))
+    mode = "[dim][full][/dim]" if full else "[dim][compact][/dim]"
+    console.print(Panel(f"[bold cyan]Vuln:[/bold cyan] {name.upper()} {mode}", expand=False))
     with console.status("[bold green]Cargando playbook...[/bold green]"):
-        result = run_vuln(name, context)
+        result = run_vuln(name, context, full=full)
     _print_response(result.raw, result.tokens_used)
     if save:
         path = save_history("vuln", name, result)
@@ -75,15 +81,17 @@ def vuln(
 
 @app.command()
 def triage(
-    finding: str = typer.Option(..., "--finding", "-f", help="Descripción del hallazgo a triar"),
+    finding: str = typer.Option(..., "--finding", help="Hallazgo a triar"),
+    full: bool = typer.Option(False, "--full", help="Output detallado completo"),
     save: bool = typer.Option(True, "--save/--no-save", help="Guardar en historial"),
 ) -> None:
-    """Tria un hallazgo: severidad, impacto, evidencia necesaria, siguientes pasos."""
+    """Triage de un hallazgo. Compacto por defecto."""
     from cli.planner import run_triage
     from cli.history import save as save_history
-    console.print(Panel(f"[bold cyan]Triage:[/bold cyan] {finding}", expand=False))
+    mode = "[dim][full][/dim]" if full else "[dim][compact][/dim]"
+    console.print(Panel(f"[bold cyan]Triage:[/bold cyan] {finding} {mode}", expand=False))
     with console.status("[bold green]Triando...[/bold green]"):
-        result = run_triage(finding)
+        result = run_triage(finding, full=full)
     _print_response(result.raw, result.tokens_used)
     if save:
         path = save_history("triage", finding, result)
@@ -92,13 +100,13 @@ def triage(
 
 @app.command()
 def report(
-    finding: str = typer.Option(..., "--finding", "-f", help="Descripción del hallazgo"),
-    target: Optional[str] = typer.Option(None, "--target", "-t", help="Target del hallazgo"),
-    context: Optional[str] = typer.Option(None, "--context", "-c", help="Ruta a fichero con requests/notas"),
-    output: Optional[str] = typer.Option(None, "--output", "-o", help="Guardar reporte en fichero .md"),
+    finding: str = typer.Option(..., "--finding", help="Descripción del hallazgo"),
+    target: Optional[str] = typer.Option(None, "--target", "-t", help="Target"),
+    context: Optional[str] = typer.Option(None, "--context", "-c", help="Fichero con requests/notas"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Guardar en fichero .md"),
     save: bool = typer.Option(True, "--save/--no-save", help="Guardar en historial"),
 ) -> None:
-    """Genera un borrador de reporte completo listo para enviar a HackerOne/Bugcrowd/YesWeHack."""
+    """Reporte completo listo para HackerOne/Bugcrowd/YesWeHack."""
     from cli.reporter import run_report
     from cli.history import save as save_history
     console.print(Panel(f"[bold cyan]Reporte:[/bold cyan] {finding}", expand=False))
@@ -106,8 +114,6 @@ def report(
         result = run_report(finding, context, target)
     _print_response(result.raw, result.tokens_used)
     if output:
-        out_path = typer.get_app_dir("bbcopilot")
-        import os
         out_file = output if output.endswith(".md") else output + ".md"
         with open(out_file, "w", encoding="utf-8") as f:
             f.write(result.raw)
@@ -119,7 +125,7 @@ def report(
 
 @app.command()
 def history(
-    last: int = typer.Option(10, "--last", "-n", help="Número de entradas a mostrar"),
+    last: int = typer.Option(10, "--last", "-n", help="Número de entradas"),
     clear: bool = typer.Option(False, "--clear", help="Borrar todo el historial"),
 ) -> None:
     """Ver o gestionar el historial de sesiones."""
