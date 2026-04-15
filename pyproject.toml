@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "bb-copilot"
@@ -13,11 +13,19 @@ dependencies = [
     "rich>=13",
     "openai>=1.30",
     "python-dotenv>=1.0",
-    "pathlib",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
 ]
 
 [project.scripts]
 bbcopilot = "cli.main:app"
+
+[tool.setuptools]
+packages = ["cli"]
 
 [tool.ruff]
 line-length = 100
