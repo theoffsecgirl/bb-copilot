@@ -1,0 +1,14 @@
+# Modelfile para bb-copilot
+# Crea el modelo con: ollama create bb-llama -f Modelfile
+# Luego en .env: OPENAI_MODEL=bb-llama
+
+FROM llama3.1
+
+# Contexto ampliado: permite cargar el vault completo sin truncar
+PARAMETER num_ctx 16384
+
+# Temperatura baja: respuestas más precisas y menos "creativas"
+PARAMETER temperature 0.2
+
+# Sin repetición de texto
+PARAMETER repeat_penalty 1.1

@@ -1,12 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Optional
-
-
-@dataclass
-class Target:
-    url: str
-    type: str = "web"  # web | api | mobile
-    notes: Optional[str] = None
 
 
 @dataclass
@@ -17,5 +9,5 @@ class VaultContext:
 
 @dataclass
 class CopilotResponse:
-    raw: str
+    raw: str = ""
     tokens_used: int = 0
