@@ -1,81 +1,89 @@
 # bb-copilot
 
-> AI-powered bug bounty assistant. Methodology vault + CLI guided by real hunter knowledge.
+> Asistente de bug bounty con IA. Vault de metodología + CLI guiado por conocimiento real de hunter.
 
 ```
-bbcopilot ask "api.target.com uses JWT and org_id in every request"
+bbcopilot ask "api.target.com usa JWT y org_id en cada request"
 bbcopilot plan --target api.target.com --type api
-bbcopilot vuln idor --context notes.txt
-bbcopilot triage --finding "IDOR on /api/v1/invoices/{id}"
+bbcopilot vuln idor --context notas.txt
+bbcopilot triage --finding "IDOR en /api/v1/invoices/{id}"
 ```
 
-## What it does
+## Qué hace
 
-- Reads your local vault (Markdown playbooks by vuln type and phase)
-- Sends the right context + your input to GPT-4o
-- Returns structured, actionable output: hypothesis → steps → evidence → impact
-- Does NOT automate attacks. It guides your thinking.
+- Lee tu vault local (playbooks en Markdown por tipo de vuln y fase)
+- Envía el contexto adecuado + tu input a GPT-4o
+- Devuelve output estructurado y accionable: hipótesis → pasos → evidencia → impacto
+- NO automatiza ataques. Guía tu razonamiento.
 
 ## Stack
 
 - Python 3.12+
 - [Typer](https://typer.tiangolo.com/) + [Rich](https://github.com/Textualize/rich)
 - OpenAI API (`gpt-4o`)
-- Markdown vault (local, version-controlled)
+- Vault en Markdown (local, versionado en Git)
 
-## Install
+## Instalación
 
 ```bash
 git clone https://github.com/theoffsecgirl/bb-copilot
 cd bb-copilot
 pip install -e .
 cp .env.example .env
-# Add your OPENAI_API_KEY to .env
+# Añadir OPENAI_API_KEY en .env
 ```
 
-## Usage
+## Uso
 
 ```bash
-# Ask anything with your vault as context
-bbcopilot ask "target has GraphQL endpoint with user_id in mutations"
+# Pregunta libre con todo el vault como contexto
+bbcopilot ask "el target tiene GraphQL con user_id en las mutations"
 
-# Get a prioritized attack plan for a target
+# Plan de ataque priorizado para un target
 bbcopilot plan --target example.com --type web
 bbcopilot plan --target api.example.com --type api
 
-# Get a specific vuln playbook + guidance
+# Playbook de una vulnerabilidad concreta
 bbcopilot vuln ssrf
-bbcopilot vuln idor --context my-notes.txt
+bbcopilot vuln idor --context mis-notas.txt
 
-# Triage a finding and get next steps
-bbcopilot triage --finding "open redirect on /redirect?url="
+# Triage de un hallazgo con siguientes pasos
+bbcopilot triage --finding "open redirect en /redirect?url="
+
+# Listar todos los playbooks disponibles en el vault
+bbcopilot vault-list
 ```
 
-## Vault structure
+## Estructura del vault
 
 ```
 vault/
-├── methodology/    # Recon, triage, JS analysis, API hunting, reporting
-├── vulns/          # Playbook per vulnerability class
-├── patterns/       # Auth bypass, multi-tenant, role confusion
-└── prompts/        # System prompt and model rules
+├── methodology/    # Recon, triage de activos, análisis JS, API hunting, reporting
+├── vulns/          # Playbook por clase de vulnerabilidad
+├── patterns/       # Auth bypass, multi-tenant, role confusion, race conditions
+└── prompts/        # System prompt y reglas del modelo
 ```
 
-## Modes
+## Comandos
 
-| Command | Input | Output |
-|---|---|---|  
-| `ask` | Free text observation | Prioritized hypothesis + steps |
-| `plan` | Target + type | Full attack plan |
-| `vuln` | Vuln class + optional context | Playbook + what to probe |
-| `triage` | Finding description | Impact + evidence needed + report structure |
+| Comando | Input | Output |
+|---|---|---|
+| `ask` | Observación en texto libre | Hipótesis priorizada + pasos |
+| `plan` | Target + tipo | Plan de ataque completo |
+| `vuln` | Clase de vuln + contexto opcional | Playbook + qué probar |
+| `triage` | Descripción del hallazgo | Impacto + evidencia necesaria + estructura de reporte |
+| `vault-list` | — | Lista de playbooks disponibles |
 
-## Philosophy
+## Vulnerabilidades cubiertas
 
-- Output over explanation
-- Structured always: hypothesis → checks → evidence → impact
-- Vault is the brain. Model is the engine.
-- No black boxes. You own the knowledge.
+`IDOR` · `SSRF` · `XSS` · `SQLi` · `Open Redirect` · `File Upload` · `Subdomain Takeover` · `Business Logic` · `CORS` · `XXE` · `SSTI` · `OAuth`
+
+## Filosofía
+
+- Resultado sobre explicación
+- Siempre estructurado: hipótesis → checks → evidencia → impacto
+- El vault es el cerebro. El modelo es el motor.
+- Sin cajas negras. El conocimiento es tuyo.
 
 ---
 
