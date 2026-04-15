@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "bb-copilot"
+version = "0.1.0"
+description = "AI-powered bug bounty assistant with local methodology vault"
+authors = [{name = "theoffsecgirl"}]
+requires-python = ">=3.12"
+dependencies = [
+    "typer[all]>=0.12",
+    "rich>=13",
+    "openai>=1.30",
+    "python-dotenv>=1.0",
+    "pathlib",
+]
+
+[project.scripts]
+bbcopilot = "cli.main:app"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
