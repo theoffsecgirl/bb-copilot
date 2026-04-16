@@ -1,8 +1,24 @@
+<div align="center">
+
 # bb-copilot
 
-> AI-powered bug bounty assistant. Methodology vault + CLI guided by real hunter knowledge.
+**AI-powered bug bounty assistant — methodology vault + guided CLI**
+
+![Language](https://img.shields.io/badge/Python-3.12+-9E4AFF?style=flat-square&logo=python&logoColor=white)
+![Version](https://img.shields.io/badge/version-0.1.0-9E4AFF?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-9E4AFF?style=flat-square)
+![LLM](https://img.shields.io/badge/LLM-Ollama%20%7C%20Groq%20%7C%20OpenAI%20%7C%20Anthropic-111111?style=flat-square)
+![Category](https://img.shields.io/badge/Category-Bug%20Bounty%20%7C%20AI%20Tooling-111111?style=flat-square)
+
+*by [theoffsecgirl](https://github.com/theoffsecgirl)*
 
 > 🇪🇸 [Versión en español](README.es.md)
+
+</div>
+
+---
+
+> AI-powered bug bounty assistant. Methodology vault + CLI guided by real hunter knowledge.
 
 ```
 bbcopilot ask "api.target.com uses JWT and org_id in every request"
@@ -107,6 +123,69 @@ bbcopilot history --clear
 # List all available playbooks
 bbcopilot vault-list
 ```
+
+## Output example
+
+### `bbcopilot ask`
+
+```text
+$ bbcopilot ask "api.target.com uses JWT and org_id in every request"
+
+╭─ bb-copilot ─────────────────────────────────────────────────────────╮
+│ Context loaded: 8 playbooks (idor, auth, jwt, api, cors, ssrf, biz)  │
+╰───────────────────────────────────────────────────────────────────────╯
+
+📌 Hypotheses (prioritized)
+
+1. IDOR via org_id manipulation
+   → Replace org_id in requests with another org's ID
+   → Test: GET /api/v1/invoices?org_id=<other_org>
+   Confidence: HIGH
+
+2. JWT algorithm confusion (RS256 → HS256)
+   → Decode JWT, modify alg header, re-sign with public key as secret
+   Confidence: MEDIUM
+
+3. Missing org_id validation on bulk endpoints
+   → POST /api/v1/export — does it check org_id ownership?
+   Confidence: MEDIUM
+
+🔎 Next steps
+  1. Enumerate all endpoints accepting org_id
+  2. Create two test accounts in different orgs
+  3. Cross-org request matrix
+
+💾 Session saved → ~/.bbcopilot/history/2026-04-17_ask_001.json
+```
+
+### `bbcopilot report`
+
+```text
+$ bbcopilot report --finding "IDOR on /api/v1/invoices/{id} exposes other users invoices" --target api.target.com
+
+╭─ Generating report ──────────────────────────────────────────────────╮
+│ Vuln: IDOR  │ Target: api.target.com  │ Format: HackerOne Markdown   │
+╰───────────────────────────────────────────────────────────────────────╯
+
+## Summary
+Insecure Direct Object Reference on `/api/v1/invoices/{id}` allows
+authenticated users to access invoices belonging to other accounts
+by incrementing the `id` parameter.
+
+## Steps to reproduce
+1. Log in as user A, create an invoice → note ID (e.g. 1042)
+2. Log in as user B
+3. Send: GET /api/v1/invoices/1041
+4. Observe: invoice data from user A is returned
+
+## Impact
+Full read access to all invoices across all accounts.
+Estimated severity: **High** (CVSS 8.1)
+
+[+] Report saved → report.md
+```
+
+---
 
 ## Commands
 
