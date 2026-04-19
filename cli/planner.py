@@ -119,3 +119,23 @@ def run_triage(finding: str, full: bool = False) -> CopilotResponse:
         f"siguientes pasos para escalar y estructura del reporte."
     )
     return ask(system, user_msg, ctx.content)
+
+
+def run_exploit_plan(finding: str, full: bool = True) -> CopilotResponse:
+    ctx = _smart_context(finding)
+    system = load_system_prompt()
+    user_msg = (
+        f"{_mode_instruction(full)}\n\n"
+        f"Genera un plan de explotación y validación para este hallazgo priorizado:\n\n{finding}\n\n"
+        f"Devuelve exactamente estas secciones:\n"
+        f"1. Hipótesis de explotación\n"
+        f"2. Qué indica cada señal observada\n"
+        f"3. Payloads o mutaciones concretas a probar\n"
+        f"4. Pasos de validación en orden\n"
+        f"5. Indicadores de confirmación\n"
+        f"6. Variantes del vector\n"
+        f"7. Impacto probable\n"
+        f"8. Qué buscar después\n\n"
+        f"No automatices ataques. Prioriza PoC mínima, reproducible y segura."
+    )
+    return ask(system, user_msg, ctx.content)
