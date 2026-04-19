@@ -1,3 +1,4 @@
+import json
 import typer
 from rich.console import Console
 from rich.markdown import Markdown
@@ -98,6 +99,23 @@ def triage(
         console.print(f"[dim]Guardado en {path}[/dim]")
 
 
+@app.command(name="triage-id")
+def triage_id(
+    finding_id: str = typer.Option(..., "--id", help="ID del finding"),
+) -> None:
+    """Triage usando un finding almacenado por ID."""
+    from cli.findings import find_by_id
+    from cli.planner import run_triage
+
+    finding = find_by_id(finding_id)
+    if not finding:
+        console.print("[red]Finding no encontrado[/red]")
+        raise typer.Exit(code=1)
+
+    result = run_triage(json.dumps(finding, ensure_ascii=False, indent=2), full=True)
+    _print_response(result.raw, result.tokens_used)
+
+
 @app.command()
 def report(
     finding: str = typer.Option(..., "--finding", help="Descripción del hallazgo"),
@@ -121,6 +139,54 @@ def report(
     if save:
         path = save_history("report", finding, result)
         console.print(f"[dim]Guardado en historial: {path}[/dim]")
+
+
+@app.command(name="report-id")
+def report_id(
+    finding_id: str = typer.Option(..., "--id", help="ID del finding"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Guardar en fichero .md"),
+) -> None:
+    """Genera un reporte desde un finding almacenado por ID."""
+    from cli.findings import find_by_id
+    from cli.reporter import run_report
+
+    finding = find_by_id(finding_id)
+    if not finding:
+        console.print("[red]Finding no encontrado[/red]")
+        raise typer.Exit(code=1)
+
+    result = run_report(json.dumps(finding, ensure_ascii=False, indent=2))
+    _print_response(result.raw, result.tokens_used)
+
+    if output:
+        out_file = output if output.endswith(".md") else output + ".md"
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(result.raw)
+        console.print(f"[green]Reporte guardado en {out_file}[/green]")
+
+
+@app.command(name="report-top")
+def report_top(
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Guardar en fichero .md"),
+) -> None:
+    """Genera reporte usando la correlación más fuerte encontrada."""
+    from cli.findings import correlate_findings
+    from cli.reporter import run_report
+
+    results = correlate_findings()
+    if not results:
+        console.print("[dim]No se encontraron correlaciones[/dim]")
+        raise typer.Exit(code=1)
+
+    top = results[0]
+    result = run_report(json.dumps(top, ensure_ascii=False, indent=2))
+    _print_response(result.raw, result.tokens_used)
+
+    if output:
+        out_file = output if output.endswith(".md") else output + ".md"
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(result.raw)
+        console.print(f"[green]Reporte guardado en {out_file}[/green]")
 
 
 @app.command()
@@ -161,6 +227,92 @@ def vault_list() -> None:
     for f in ctx.files:
         console.print(f"  [green]✓[/green] {f}")
     console.print(f"\n[dim]{len(ctx.files)} ficheros cargados[/dim]")
+
+
+@app.command()
+def ingest(
+    tool: str = typer.Argument(..., help="Nombre de la tool origen"),
+    input_file: str = typer.Argument(..., help="Fichero JSON/JSONL de entrada"),
+) -> None:
+    """Importa findings de tools externas y los normaliza."""
+    from cli.findings import ingest_file
+    count, path = ingest_file(tool, input_file)
+    console.print(f"[green]Importados {count} findings[/green]")
+    console.print(f"[dim]{path}[/dim]")
+
+
+@app.command()
+def findings(
+    tool: Optional[str] = typer.Option(None, "--tool", help="Filtrar por tool"),
+    vector: Optional[str] = typer.Option(None, "--vector", help="Filtrar por vector"),
+    host: Optional[str] = typer.Option(None, "--host", help="Filtrar por host"),
+    limit: int = typer.Option(50, "--limit", help="Máximo de resultados a mostrar"),
+) -> None:
+    """Lista findings almacenados con filtros básicos."""
+    from cli.findings import load_all_findings
+    data = load_all_findings()
+    if tool:
+        data = [f for f in data if f.get("tool") == tool]
+    if vector:
+        data = [f for f in data if f.get("vector") == vector]
+    if host:
+        data = [f for f in data if f.get("host") == host]
+    if not data:
+        console.print("[dim]No findings[/dim]")
+        return
+    for f in data[:limit]:
+        console.print(f"[cyan]{f.get('id')}[/cyan] {f.get('type')} {f.get('tool')} {f.get('target')}")
+
+
+@app.command()
+def correlate() -> None:
+    """Agrupa findings por host y vector para priorizar superficies calientes."""
+    from cli.findings import correlate_findings
+    results = correlate_findings()
+    if not results:
+        console.print("[dim]No correlations found[/dim]")
+        return
+    for c in results:
+        console.print(f"[yellow]{c['host']}[/yellow] [{c['vector']}] → {c['count']} findings")
+        console.print(f"  tools: {', '.join(c['tools'])}")
+        for t in c['targets'][:3]:
+            console.print(f"    - {t}")
+
+
+@app.command(name="auto-triage")
+def auto_triage() -> None:
+    """Ejecuta triage sobre la correlación más fuerte encontrada."""
+    from cli.findings import correlate_findings
+    from cli.planner import run_triage
+
+    results = correlate_findings()
+    if not results:
+        console.print("[dim]No correlations found[/dim]")
+        return
+
+    top = results[0]
+    summary = json.dumps(top, ensure_ascii=False, indent=2)
+    console.print(f"[bold cyan]Auto-triaging top correlation:[/bold cyan] {top['host']} [{top['vector']}]")
+    result = run_triage(summary, full=True)
+    _print_response(result.raw, result.tokens_used)
+
+
+@app.command(name="exploit-plan")
+def exploit_plan() -> None:
+    """Genera plan de explotación guiado para la correlación más fuerte."""
+    from cli.findings import correlate_findings
+    from cli.planner import run_exploit_plan
+
+    results = correlate_findings()
+    if not results:
+        console.print("[dim]No correlations found[/dim]")
+        return
+
+    top = results[0]
+    summary = json.dumps(top, ensure_ascii=False, indent=2)
+    console.print(f"[bold red]Exploit planning:[/bold red] {top['host']} [{top['vector']}]")
+    result = run_exploit_plan(summary, full=True)
+    _print_response(result.raw, result.tokens_used)
 
 
 if __name__ == "__main__":

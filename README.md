@@ -18,14 +18,17 @@
 
 ---
 
-> AI-powered bug bounty assistant. Methodology vault + CLI guided by real hunter knowledge.
+> AI-powered bug bounty assistant. Methodology vault + classic guided CLI + findings workflow for real bug bounty pipelines.
 
-```
+```bash
 bbcopilot ask "api.target.com uses JWT and org_id in every request"
 bbcopilot plan --target api.target.com --type api
 bbcopilot vuln idor --context notes.txt
 bbcopilot triage --finding "IDOR on /api/v1/invoices/{id}"
-bbcopilot report --finding "IDOR on /api/v1/invoices/{id}" --target api.target.com -o report.md
+bbcopilot ingest webxray out.jsonl
+bbcopilot correlate
+bbcopilot auto-triage
+bbcopilot exploit-plan
 ```
 
 ## What it does
@@ -35,6 +38,8 @@ bbcopilot report --finding "IDOR on /api/v1/invoices/{id}" --target api.target.c
 - Returns structured, actionable output: hypotheses → steps → evidence → impact
 - Generates complete reports ready to submit to HackerOne, Bugcrowd or YesWeHack
 - Saves local history of all sessions in `~/.bbcopilot/history/`
+- Stores normalized findings in `~/.bbcopilot/findings/`
+- Correlates findings from external tools to prioritize hotter surfaces
 - Does NOT automate attacks. Guides your reasoning.
 
 ## Stack
@@ -44,6 +49,7 @@ bbcopilot report --finding "IDOR on /api/v1/invoices/{id}" --target api.target.c
 - Any OpenAI-compatible LLM API: **Ollama, Groq, OpenAI, Anthropic**
 - Markdown vault (local, Git-versioned)
 - Local JSON history (`~/.bbcopilot/history/`)
+- Local JSONL findings store (`~/.bbcopilot/findings/`)
 
 ## Installation
 
@@ -124,65 +130,40 @@ bbcopilot history --clear
 bbcopilot vault-list
 ```
 
-## Output example
+## Findings workflow
 
-### `bbcopilot ask`
+This layer turns `bb-copilot` from a guided assistant into a workflow hub:
 
-```text
-$ bbcopilot ask "api.target.com uses JWT and org_id in every request"
+```bash
+# 1. Ingest output from external tools
+bbcopilot ingest webxray out.jsonl
 
-╭─ bb-copilot ─────────────────────────────────────────────────────────╮
-│ Context loaded: 8 playbooks (idor, auth, jwt, api, cors, ssrf, biz)  │
-╰───────────────────────────────────────────────────────────────────────╯
+# 2. Review stored findings
+bbcopilot findings
+bbcopilot findings --tool webxray --vector xss --host api.example.com
 
-📌 Hypotheses (prioritized)
+# 3. Correlate by host/vector
+bbcopilot correlate
 
-1. IDOR via org_id manipulation
-   → Replace org_id in requests with another org's ID
-   → Test: GET /api/v1/invoices?org_id=<other_org>
-   Confidence: HIGH
+# 4. Triage the hottest cluster automatically
+bbcopilot auto-triage
 
-2. JWT algorithm confusion (RS256 → HS256)
-   → Decode JWT, modify alg header, re-sign with public key as secret
-   Confidence: MEDIUM
+# 5. Generate an exploit validation plan
+bbcopilot exploit-plan
 
-3. Missing org_id validation on bulk endpoints
-   → POST /api/v1/export — does it check org_id ownership?
-   Confidence: MEDIUM
-
-🔎 Next steps
-  1. Enumerate all endpoints accepting org_id
-  2. Create two test accounts in different orgs
-  3. Cross-org request matrix
-
-💾 Session saved → ~/.bbcopilot/history/2026-04-17_ask_001.json
+# 6. Generate a report from one finding or top cluster
+bbcopilot report-id --id F-202604190001-0001
+bbcopilot report-top -o top-report.md
 ```
 
-### `bbcopilot report`
+### Example integration
 
-```text
-$ bbcopilot report --finding "IDOR on /api/v1/invoices/{id} exposes other users invoices" --target api.target.com
-
-╭─ Generating report ──────────────────────────────────────────────────╮
-│ Vuln: IDOR  │ Target: api.target.com  │ Format: HackerOne Markdown   │
-╰───────────────────────────────────────────────────────────────────────╯
-
-## Summary
-Insecure Direct Object Reference on `/api/v1/invoices/{id}` allows
-authenticated users to access invoices belonging to other accounts
-by incrementing the `id` parameter.
-
-## Steps to reproduce
-1. Log in as user A, create an invoice → note ID (e.g. 1042)
-2. Log in as user B
-3. Send: GET /api/v1/invoices/1041
-4. Observe: invoice data from user A is returned
-
-## Impact
-Full read access to all invoices across all accounts.
-Estimated severity: **High** (CVSS 8.1)
-
-[+] Report saved → report.md
+```bash
+webxray -u https://target.com --format jsonl --json-output out.jsonl
+bbcopilot ingest webxray out.jsonl
+bbcopilot correlate
+bbcopilot auto-triage
+bbcopilot exploit-plan
 ```
 
 ---
@@ -195,13 +176,21 @@ Estimated severity: **High** (CVSS 8.1)
 | `plan` | Target + type | Full attack plan |
 | `vuln` | Vuln class + optional context | Playbook + what to test |
 | `triage` | Finding description | Severity + evidence + next steps |
+| `triage-id` | Stored finding ID | Triage from normalized finding |
 | `report` | Finding + optional context | Full report (Markdown) |
+| `report-id` | Stored finding ID | Full report from one finding |
+| `report-top` | — | Full report from top correlation |
+| `ingest` | Tool name + JSON/JSONL | Normalize and persist findings |
+| `findings` | Optional filters | List stored findings |
+| `correlate` | — | Group findings by host/vector |
+| `auto-triage` | — | Triage top correlation |
+| `exploit-plan` | — | Exploit/validation plan for top correlation |
 | `history` | — | Last sessions in table |
 | `vault-list` | — | List of available playbooks |
 
 ## Vault structure
 
-```
+```text
 vault/
 ├── methodology/    # Recon, asset triage, JS analysis, API hunting, reporting
 ├── vulns/          # Playbook per vulnerability class
@@ -227,16 +216,17 @@ make ask Q="your question"  # Quick query
 make clean    # Clean caches
 ```
 
-## History
+## Storage
 
-All sessions are automatically saved to `~/.bbcopilot/history/` in JSON format.
-Disable with `--no-save` on any command.
+- History: `~/.bbcopilot/history/`
+- Findings: `~/.bbcopilot/findings/`
 
 ## Philosophy
 
 - Result over explanation
 - Always structured: hypotheses → checks → evidence → impact
 - The vault is the brain. The model is the engine.
+- Findings make the workflow reproducible.
 - No black boxes. The knowledge is yours.
 
 ---
