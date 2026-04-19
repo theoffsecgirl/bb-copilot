@@ -1,8 +1,6 @@
 import typer
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.panel import Panel
-from rich.table import Table
 from typing import Optional
 
 app = typer.Typer(
@@ -50,6 +48,24 @@ def correlate() -> None:
         console.print(f"  tools: {', '.join(c['tools'])}")
         for t in c['targets'][:3]:
             console.print(f"    - {t}")
+
+
+@app.command(name="auto-triage")
+def auto_triage() -> None:
+    import json
+    from cli.findings import correlate_findings
+    from cli.planner import run_triage
+
+    results = correlate_findings()
+    if not results:
+        console.print("[dim]No correlations found[/dim]")
+        return
+
+    top = results[0]
+    summary = json.dumps(top, ensure_ascii=False, indent=2)
+    console.print(f"[bold cyan]Auto-triaging top correlation:[/bold cyan] {top['host']} [{top['vector']}]")
+    result = run_triage(summary, full=True)
+    _print_response(result.raw, result.tokens_used)
 
 
 @app.command(name="report-id")
