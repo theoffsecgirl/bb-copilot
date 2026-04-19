@@ -26,7 +26,6 @@ def ask(
     full: bool = typer.Option(False, "--full", "-f", help="Output detallado completo"),
     save: bool = typer.Option(True, "--save/--no-save", help="Guardar en historial"),
 ) -> None:
-    """Pregunta libre. Compacto por defecto, --full para output completo."""
     from cli.planner import run_ask
     from cli.history import save as save_history
     mode = "[dim][full][/dim]" if full else "[dim][compact][/dim]"
@@ -47,7 +46,6 @@ def plan(
     full: bool = typer.Option(False, "--full", help="Output detallado completo"),
     save: bool = typer.Option(True, "--save/--no-save", help="Guardar en historial"),
 ) -> None:
-    """Plan de ataque completo. Compacto por defecto, --full para más detalle."""
     from cli.planner import run_plan
     from cli.history import save as save_history
     mode = "[dim][full][/dim]" if full else "[dim][compact][/dim]"
@@ -67,7 +65,6 @@ def vuln(
     full: bool = typer.Option(False, "--full", help="Output detallado completo"),
     save: bool = typer.Option(True, "--save/--no-save", help="Guardar en historial"),
 ) -> None:
-    """Playbook de una vulnerabilidad. Compacto por defecto."""
     from cli.planner import run_vuln
     from cli.history import save as save_history
     mode = "[dim][full][/dim]" if full else "[dim][compact][/dim]"
@@ -86,7 +83,6 @@ def triage(
     full: bool = typer.Option(False, "--full", help="Output detallado completo"),
     save: bool = typer.Option(True, "--save/--no-save", help="Guardar en historial"),
 ) -> None:
-    """Triage de un hallazgo. Compacto por defecto."""
     from cli.planner import run_triage
     from cli.history import save as save_history
     mode = "[dim][full][/dim]" if full else "[dim][compact][/dim]"
@@ -103,15 +99,12 @@ def triage(
 def triage_id(
     finding_id: str = typer.Option(..., "--id", help="ID del finding"),
 ) -> None:
-    """Triage usando un finding almacenado por ID."""
     from cli.findings import find_by_id
     from cli.planner import run_triage
-
     finding = find_by_id(finding_id)
     if not finding:
         console.print("[red]Finding no encontrado[/red]")
         raise typer.Exit(code=1)
-
     result = run_triage(json.dumps(finding, ensure_ascii=False, indent=2), full=True)
     _print_response(result.raw, result.tokens_used)
 
@@ -124,7 +117,6 @@ def report(
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Guardar en fichero .md"),
     save: bool = typer.Option(True, "--save/--no-save", help="Guardar en historial"),
 ) -> None:
-    """Reporte completo listo para HackerOne/Bugcrowd/YesWeHack."""
     from cli.reporter import run_report
     from cli.history import save as save_history
     console.print(Panel(f"[bold cyan]Reporte:[/bold cyan] {finding}", expand=False))
@@ -146,18 +138,14 @@ def report_id(
     finding_id: str = typer.Option(..., "--id", help="ID del finding"),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Guardar en fichero .md"),
 ) -> None:
-    """Genera un reporte desde un finding almacenado por ID."""
     from cli.findings import find_by_id
     from cli.reporter import run_report
-
     finding = find_by_id(finding_id)
     if not finding:
         console.print("[red]Finding no encontrado[/red]")
         raise typer.Exit(code=1)
-
     result = run_report(json.dumps(finding, ensure_ascii=False, indent=2))
     _print_response(result.raw, result.tokens_used)
-
     if output:
         out_file = output if output.endswith(".md") else output + ".md"
         with open(out_file, "w", encoding="utf-8") as f:
@@ -169,19 +157,15 @@ def report_id(
 def report_top(
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Guardar en fichero .md"),
 ) -> None:
-    """Genera reporte usando la correlación más fuerte encontrada."""
     from cli.findings import correlate_findings
     from cli.reporter import run_report
-
     results = correlate_findings()
     if not results:
         console.print("[dim]No se encontraron correlaciones[/dim]")
         raise typer.Exit(code=1)
-
     top = results[0]
     result = run_report(json.dumps(top, ensure_ascii=False, indent=2))
     _print_response(result.raw, result.tokens_used)
-
     if output:
         out_file = output if output.endswith(".md") else output + ".md"
         with open(out_file, "w", encoding="utf-8") as f:
@@ -194,7 +178,6 @@ def history(
     last: int = typer.Option(10, "--last", "-n", help="Número de entradas"),
     clear: bool = typer.Option(False, "--clear", help="Borrar todo el historial"),
 ) -> None:
-    """Ver o gestionar el historial de sesiones."""
     from cli.history import load_last, clear as clear_history
     if clear:
         n = clear_history()
@@ -220,7 +203,6 @@ def history(
 
 @app.command(name="vault-list")
 def vault_list() -> None:
-    """Lista todos los playbooks disponibles en el vault."""
     from cli.vault import load_all
     ctx = load_all()
     console.print("[bold]Vault — playbooks disponibles:[/bold]")
@@ -234,7 +216,6 @@ def ingest(
     tool: str = typer.Argument(..., help="Nombre de la tool origen"),
     input_file: str = typer.Argument(..., help="Fichero JSON/JSONL de entrada"),
 ) -> None:
-    """Importa findings de tools externas y los normaliza."""
     from cli.findings import ingest_file
     count, path = ingest_file(tool, input_file)
     console.print(f"[green]Importados {count} findings[/green]")
@@ -248,7 +229,6 @@ def findings(
     host: Optional[str] = typer.Option(None, "--host", help="Filtrar por host"),
     limit: int = typer.Option(50, "--limit", help="Máximo de resultados a mostrar"),
 ) -> None:
-    """Lista findings almacenados con filtros básicos."""
     from cli.findings import load_all_findings
     data = load_all_findings()
     if tool:
@@ -266,30 +246,56 @@ def findings(
 
 @app.command()
 def correlate() -> None:
-    """Agrupa findings por host y vector para priorizar superficies calientes."""
     from cli.findings import correlate_findings
     results = correlate_findings()
     if not results:
         console.print("[dim]No correlations found[/dim]")
         return
     for c in results:
-        console.print(f"[yellow]{c['host']}[/yellow] [{c['vector']}] → {c['count']} findings")
+        console.print(f"[yellow]{c['host']}[/yellow] [{c['vector']}] → {c['count']} findings | score={c.get('score', 0)}")
         console.print(f"  tools: {', '.join(c['tools'])}")
         for t in c['targets'][:3]:
             console.print(f"    - {t}")
 
 
+@app.command()
+def clusters(
+    limit: int = typer.Option(20, "--limit", help="Máximo de clusters a mostrar"),
+) -> None:
+    from cli.findings import build_clusters
+    results = build_clusters()
+    if not results:
+        console.print("[dim]No clusters[/dim]")
+        return
+    for c in results[:limit]:
+        console.print(f"[bold cyan]{c['cluster_id']}[/bold cyan] {c['host']} [{c['vector']}] score={c['score']}")
+        console.print(f"  tools: {', '.join(c['tools'])}")
+        if c.get('params'):
+            console.print(f"  params: {', '.join(c['params'])}")
+        console.print(f"  why: {c['why_it_matters']}")
+        console.print(f"  next: {c['next_step']}")
+
+
+@app.command(name="cluster-show")
+def cluster_show(
+    cluster_id: str = typer.Option(..., "--id", help="ID del cluster"),
+) -> None:
+    from cli.findings import get_cluster
+    cluster = get_cluster(cluster_id)
+    if not cluster:
+        console.print("[red]Cluster no encontrado[/red]")
+        raise typer.Exit(code=1)
+    console.print(json.dumps(cluster, ensure_ascii=False, indent=2))
+
+
 @app.command(name="auto-triage")
 def auto_triage() -> None:
-    """Ejecuta triage sobre la correlación más fuerte encontrada."""
     from cli.findings import correlate_findings
     from cli.planner import run_triage
-
     results = correlate_findings()
     if not results:
         console.print("[dim]No correlations found[/dim]")
         return
-
     top = results[0]
     summary = json.dumps(top, ensure_ascii=False, indent=2)
     console.print(f"[bold cyan]Auto-triaging top correlation:[/bold cyan] {top['host']} [{top['vector']}]")
@@ -299,15 +305,12 @@ def auto_triage() -> None:
 
 @app.command(name="exploit-plan")
 def exploit_plan() -> None:
-    """Genera plan de explotación guiado para la correlación más fuerte."""
     from cli.findings import correlate_findings
     from cli.planner import run_exploit_plan
-
     results = correlate_findings()
     if not results:
         console.print("[dim]No correlations found[/dim]")
         return
-
     top = results[0]
     summary = json.dumps(top, ensure_ascii=False, indent=2)
     console.print(f"[bold red]Exploit planning:[/bold red] {top['host']} [{top['vector']}]")
