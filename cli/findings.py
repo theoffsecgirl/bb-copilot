@@ -1,5 +1,6 @@
 import json
 import os
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -119,3 +120,31 @@ def find_by_id(finding_id: str) -> dict[str, Any] | None:
         if finding.get("id") == finding_id:
             return finding
     return None
+
+
+def correlate_findings() -> list[dict[str, Any]]:
+    findings = load_all_findings()
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+
+    for finding in findings:
+        host = finding.get("host") or "unknown-host"
+        vector = finding.get("vector") or finding.get("type") or "unknown"
+        grouped[(host, vector)].append(finding)
+
+    correlations: list[dict[str, Any]] = []
+    for (host, vector), items in grouped.items():
+        if len(items) < 2:
+            continue
+        correlations.append(
+            {
+                "host": host,
+                "vector": vector,
+                "count": len(items),
+                "ids": [item.get("id") for item in items],
+                "tools": sorted({item.get("tool", "unknown") for item in items}),
+                "targets": sorted({item.get("target", "") for item in items if item.get("target")}),
+            }
+        )
+
+    correlations.sort(key=lambda x: x["count"], reverse=True)
+    return correlations
