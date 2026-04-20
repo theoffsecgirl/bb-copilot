@@ -1,84 +1,105 @@
 # bb-copilot
 
-> Asistente de bug bounty con IA. Vault de metodología + CLI clásica + workflow de findings.
+> Asistente de bug bounty con IA. Vault + CLI + workflow de findings y correlación real.
 
 > 🇬🇧 [English version](README.md)
 
 ```bash
-bbcopilot ask "api.target.com usa JWT y org_id en cada request"
-bbcopilot plan --target api.target.com --type api
-bbcopilot vuln idor --context notas.txt
-bbcopilot triage --finding "IDOR en /api/v1/invoices/{id}"
 bbcopilot ingest webxray out.jsonl
-bbcopilot correlate
+bbcopilot ingest takeovflow takeovers.jsonl
+bbcopilot ingest pathraider lfi.jsonl
+bbcopilot clusters
+bbcopilot cluster-show --id C-0001
 bbcopilot auto-triage
 bbcopilot exploit-plan
 ```
 
 ## Qué hace
 
-- Lee tu vault local (playbooks en Markdown por tipo de vuln y fase)
-- Envía el contexto adecuado + tu input al modelo configurado
-- Devuelve output estructurado y accionable: hipótesis → pasos → evidencia → impacto
-- Genera reportes completos listos para enviar a HackerOne, Bugcrowd o YesWeHack
-- Guarda historial local en `~/.bbcopilot/history/`
-- Almacena findings normalizados en `~/.bbcopilot/findings/`
-- Correlaciona findings de tools externas para priorizar superficies calientes
-- NO automatiza ataques. Guía tu razonamiento
+- Usa tu vault local (playbooks en Markdown)
+- Genera output estructurado: hipótesis → pasos → evidencia → impacto
+- Guarda historial en `~/.bbcopilot/history/`
+- Almacena findings en `~/.bbcopilot/findings/`
+- Correlaciona findings en clusters con score
+- NO automatiza ataques
 
-## Instalación
-
-```bash
-git clone https://github.com/theoffsecgirl/bb-copilot
-cd bb-copilot
-make setup
-```
-
-## Uso
-
-```bash
-bbcopilot ask "GraphQL con user_id"
-bbcopilot plan --target api.example.com --type api
-bbcopilot vuln idor
-bbcopilot triage --finding "open redirect"
-bbcopilot report --finding "IDOR en /api/v1/invoices/{id}"
-bbcopilot history
-bbcopilot vault-list
-```
+---
 
 ## Workflow de findings
 
+### 1. Ingestar
+
 ```bash
-# 1. Ingestar output de tools externas
 bbcopilot ingest webxray out.jsonl
+bbcopilot ingest takeovflow takeovers.jsonl
+bbcopilot ingest pathraider lfi.jsonl
+```
 
-# 2. Revisar findings
+### 2. Revisar
+
+```bash
 bbcopilot findings
-bbcopilot findings --tool webxray --vector xss --host api.example.com
+```
 
-# 3. Correlacionar
+### 3. Correlación v1 (clave)
+
+El sistema ya no agrupa solo por host/vector.
+
+Ahora crea **clusters** usando:
+- host
+- vector
+- parámetros
+- múltiples tools
+- severidad y confidence
+
+Cada cluster incluye:
+- cluster_id
+- score
+- why_it_matters
+- next_step
+
+```bash
 bbcopilot correlate
+bbcopilot clusters
+bbcopilot cluster-show --id C-0001
+```
 
-# 4. Triage automático
+### 4. Triage y explotación
+
+```bash
 bbcopilot auto-triage
-
-# 5. Plan de explotación
 bbcopilot exploit-plan
+```
 
-# 6. Reportes
-bbcopilot report-id --id F-...
+### 5. Reporte
+
+```bash
 bbcopilot report-top
 ```
 
-## Ejemplo de integración
+---
+
+## Ejemplo real
 
 ```bash
-webxray -u https://target.com --format jsonl --json-output out.jsonl
-bbcopilot ingest webxray out.jsonl
-bbcopilot correlate
-bbcopilot auto-triage
-bbcopilot exploit-plan
+webxray -u https://target.com --format jsonl --stdout > web.jsonl
+pathraider -u "https://target.com/download?file=FUZZ" --format jsonl --stdout > lfi.jsonl
+
+bbcopilot ingest webxray web.jsonl
+bbcopilot ingest pathraider lfi.jsonl
+
+bbcopilot clusters
 ```
+
+Salida:
+
+```text
+C-0001 target.com [lfd_traversal+xss] score=95
+why: mismo parámetro afectado por múltiples vectores
+next: probar /etc/passwd y escalar
+```
+
+---
 
 ## Comandos
 
@@ -94,15 +115,23 @@ bbcopilot exploit-plan
 | report-top | Reporte del cluster principal |
 | ingest | Importar findings |
 | findings | Listar findings |
-| correlate | Correlacionar findings |
+| correlate | Correlacionar |
+| clusters | Listar clusters |
+| cluster-show | Ver cluster |
 | auto-triage | Triage automático |
 | exploit-plan | Plan de explotación |
-| history | Historial |
-| vault-list | Vault |
+
+---
+
+## Modelo mental
+
+finding → señal
+cluster → hipótesis de bug
+
+---
 
 ## Filosofía
 
 - Resultado > explicación
-- Workflow reproducible
-- El vault es el cerebro
-- Los findings son la memoria
+- Clusters > findings
+- Menos ruido, más impacto
