@@ -21,14 +21,14 @@
 > AI-powered bug bounty assistant. Methodology vault + classic guided CLI + findings workflow for real bug bounty pipelines.
 
 ```bash
-bbcopilot ask "api.target.com uses JWT and org_id in every request"
-bbcopilot plan --target api.target.com --type api
-bbcopilot vuln idor --context notes.txt
-bbcopilot triage --finding "IDOR on /api/v1/invoices/{id}"
 bbcopilot ingest webxray out.jsonl
-bbcopilot correlate
+bbcopilot ingest takeovflow takeovers.jsonl
+bbcopilot ingest pathraider lfi.jsonl
+bbcopilot clusters
+bbcopilot cluster-show --id C-0001
 bbcopilot auto-triage
 bbcopilot exploit-plan
+bbcopilot report-top
 ```
 
 ## What it does
@@ -39,7 +39,7 @@ bbcopilot exploit-plan
 - Generates complete reports ready to submit to HackerOne, Bugcrowd or YesWeHack
 - Saves local history of all sessions in `~/.bbcopilot/history/`
 - Stores normalized findings in `~/.bbcopilot/findings/`
-- Correlates findings from external tools to prioritize hotter surfaces
+- Correlates findings into scored clusters
 - Does NOT automate attacks. Guides your reasoning.
 
 ## Stack
@@ -59,111 +59,90 @@ cd bb-copilot
 make setup
 ```
 
-Then edit `.env` according to your chosen provider (see **LLM Providers** section).
-
-## LLM Providers
-
-| Provider | Cost | Privacy | Setup |
-|---|---|---|---|
-| **Ollama** (default) | Free | Local — 100% private | `brew install ollama` |
-| Groq | Free (limited tier) | Cloud | API key at console.groq.com |
-| OpenAI | Paid | Cloud | API key at platform.openai.com |
-| Anthropic | Paid | Cloud | API key at console.anthropic.com |
-
-### Ollama (default)
-
-```bash
-brew install ollama
-ollama pull llama3.1   # ~4GB, one-time
-ollama serve           # run in background
-```
-
-`.env`:
-```bash
-OPENAI_API_KEY=ollama
-OPENAI_BASE_URL=http://localhost:11434/v1
-OPENAI_MODEL=llama3.1
-```
-
-### Groq (free, cloud)
-
-Note: free tier has ~6000 token context limit. Add to `.env`:
-```bash
-BBCOPILOT_MAX_CONTEXT_TOKENS=5000
-```
-
-### OpenAI
-
-```bash
-OPENAI_API_KEY=sk-proj-...
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-4o
-```
-
 ## Usage
 
 ```bash
-# Free-form question with full vault as context
 bbcopilot ask "target has GraphQL with user_id in mutations"
-
-# Prioritized attack plan for a target
 bbcopilot plan --target example.com --type web
-bbcopilot plan --target api.example.com --type api
-
-# Playbook for a specific vulnerability
 bbcopilot vuln ssrf
-bbcopilot vuln idor --context my-notes.txt
-
-# Triage a finding with next steps
 bbcopilot triage --finding "open redirect on /redirect?url="
-
-# Generate complete report ready to submit
 bbcopilot report --finding "IDOR on /api/v1/invoices/{id} exposes other users' invoices"
-bbcopilot report --finding "..." --target api.example.com --context requests.txt --output report.md
-
-# Session history
 bbcopilot history
-bbcopilot history --last 5
-bbcopilot history --clear
-
-# List all available playbooks
 bbcopilot vault-list
 ```
 
 ## Findings workflow
 
-This layer turns `bb-copilot` from a guided assistant into a workflow hub:
+This layer turns `bb-copilot` from a guided assistant into a workflow hub.
+
+### 1. Ingest
 
 ```bash
-# 1. Ingest output from external tools
 bbcopilot ingest webxray out.jsonl
+bbcopilot ingest takeovflow takeovers.jsonl
+bbcopilot ingest pathraider lfi.jsonl
+```
 
-# 2. Review stored findings
+### 2. Review findings
+
+```bash
 bbcopilot findings
 bbcopilot findings --tool webxray --vector xss --host api.example.com
+```
 
-# 3. Correlate by host/vector
+### 3. Correlation v1
+
+`bb-copilot` no longer just groups by host/vector. It builds **clusters** using:
+- host
+- vector
+- param overlap
+- multi-tool agreement
+- severity and confidence
+
+Each cluster exposes:
+- `cluster_id`
+- `score`
+- `why_it_matters`
+- `next_step`
+- tools involved
+- targets involved
+- finding ids
+
+```bash
 bbcopilot correlate
+bbcopilot clusters
+bbcopilot cluster-show --id C-0001
+```
 
-# 4. Triage the hottest cluster automatically
+### 4. Triage and exploit
+
+```bash
 bbcopilot auto-triage
-
-# 5. Generate an exploit validation plan
 bbcopilot exploit-plan
+```
 
-# 6. Generate a report from one finding or top cluster
+### 5. Report
+
+```bash
 bbcopilot report-id --id F-202604190001-0001
 bbcopilot report-top -o top-report.md
 ```
 
-### Example integration
+## Example integration
 
 ```bash
-webxray -u https://target.com --format jsonl --json-output out.jsonl
-bbcopilot ingest webxray out.jsonl
-bbcopilot correlate
-bbcopilot auto-triage
+webxray -u https://target.com --format jsonl --json-output web.jsonl
+pathraider -u "https://target.com/download?file=FUZZ" --format jsonl --stdout > lfi.jsonl
+takeovflow -d target.com --format jsonl --stdout > takeover.jsonl
+
+bbcopilot ingest webxray web.jsonl
+bbcopilot ingest pathraider lfi.jsonl
+bbcopilot ingest takeovflow takeover.jsonl
+
+bbcopilot clusters
+bbcopilot cluster-show --id C-0001
 bbcopilot exploit-plan
+bbcopilot report-top
 ```
 
 ---
@@ -179,42 +158,28 @@ bbcopilot exploit-plan
 | `triage-id` | Stored finding ID | Triage from normalized finding |
 | `report` | Finding + optional context | Full report (Markdown) |
 | `report-id` | Stored finding ID | Full report from one finding |
-| `report-top` | — | Full report from top correlation |
+| `report-top` | — | Full report from top scored cluster |
 | `ingest` | Tool name + JSON/JSONL | Normalize and persist findings |
 | `findings` | Optional filters | List stored findings |
-| `correlate` | — | Group findings by host/vector |
-| `auto-triage` | — | Triage top correlation |
-| `exploit-plan` | — | Exploit/validation plan for top correlation |
+| `correlate` | — | Show scored correlations |
+| `clusters` | — | List scored clusters |
+| `cluster-show` | Cluster ID | Inspect one cluster |
+| `auto-triage` | — | Triage top cluster |
+| `exploit-plan` | — | Exploit/validation plan for top cluster |
 | `history` | — | Last sessions in table |
 | `vault-list` | — | List of available playbooks |
 
-## Vault structure
+## Correlation model
 
-```text
-vault/
-├── methodology/    # Recon, asset triage, JS analysis, API hunting, reporting
-├── vulns/          # Playbook per vulnerability class
-├── patterns/       # Auth bypass, multi-tenant, role confusion, race conditions
-└── prompts/        # System prompt and model rules
-```
+A finding is a signal.
+A cluster is a bug hypothesis.
 
-## Covered vulnerabilities
+The current correlator prioritizes:
+- same host + same vector
+- same host + same param + different vectors
+- multiple tools agreeing on the same surface
 
-`IDOR` · `SSRF` · `XSS` · `SQLi` · `Open Redirect` · `File Upload` · `Subdomain Takeover` · `Business Logic` · `CORS` · `XXE` · `SSTI` · `OAuth`
-
-## Makefile
-
-```bash
-make setup    # Full initial setup
-make install  # Dependencies only
-make dev      # Dependencies + dev (pytest, ruff)
-make test     # Run tests
-make lint     # Linter
-make format   # Format code
-make vault    # List vault
-make ask Q="your question"  # Quick query
-make clean    # Clean caches
-```
+This is enough to reduce noise and surface likely real bugs fast.
 
 ## Storage
 
@@ -227,6 +192,7 @@ make clean    # Clean caches
 - Always structured: hypotheses → checks → evidence → impact
 - The vault is the brain. The model is the engine.
 - Findings make the workflow reproducible.
+- Clusters make the workflow actionable.
 - No black boxes. The knowledge is yours.
 
 ---
